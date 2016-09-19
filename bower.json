@@ -1,0 +1,18 @@
+{
+  "name": "niceselect",
+  "homepage": "https://github.com/buuum/niceselect",
+  "description": "Simple nice select",
+  "main": [
+    "niceselect/js/niceselect.js"
+  ],
+  "keywords": [
+    "select"
+  ],
+  "authors": [
+    "buuum"
+  ],
+  "dependencies": {
+    "jquery": ">=1.7"
+  },
+  "license": "MIT"
+}
