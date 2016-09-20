@@ -10,7 +10,7 @@
   var SelectNice;
   SelectNice = (function() {
     SelectNice = function() {
-      var attachClickHandler, attachInputHandler, attachMouseEnterHandler, buildWidget, findOption, getData, inputSearch, search, self, setSelectFieldValue, setUnSelectFieldValue;
+      var addLi, attachClickHandler, attachClickList, attachInputHandler, attachMouseEnterHandler, attachUlHandler, buildWidget, findOption, getData, inputSearch, removeLi, search, self, setSelectFieldValue, setUnSelectFieldValue;
       self = this;
       getData = function(key) {
         var data;
@@ -34,40 +34,64 @@
         }
         return $("option[value=" + value + "]", self.$elem);
       };
+      attachUlHandler = function() {
+        self.$ulsearch.on('click', function(e) {
+          e.preventDefault();
+          self.$inputsearch.focus();
+        });
+      };
       attachInputHandler = function() {
-        var $input, $ul;
-        $input = self.$widget.find('input');
-        $ul = self.$widget.find('ul');
-        $input.on('focus', function() {
+        var $ul;
+        $ul = self.$ullist;
+        self.$inputsearch.on('focus', function() {
           $ul.show();
           inputSearch();
         });
-        $input.on('focusout', function() {
+        self.$inputsearch.on('focusout', function() {
           if ($ul.find('li:hover').length <= 0) {
             return $ul.hide();
           }
         });
       };
       inputSearch = function() {
-        var $input, searchText;
-        $input = self.$widget.find('input');
-        searchText = $input.val();
+        var $ul, searchText;
+        searchText = self.$inputsearch.val();
         searchText = searchText.toLowerCase();
         searchText = searchText.replace(/\s+/g, '');
-        self.$widget.find('li').each(function() {
+        $ul = self.$ullist;
+        if (!self.options.multiple) {
+          $ul.find('li a').removeClass(self.options.selectedclass);
+        }
+        $ul.find('li').each(function() {
           var currentLiText, showCurrentLi;
           currentLiText = $(this).text();
           showCurrentLi = currentLiText.toLowerCase().replace(/\s+/g, '').indexOf(searchText) !== -1;
           $(this).toggle(showCurrentLi);
         });
-        if (self.$widget.find("li:visible a." + self.options.selectedclass).length <= 0) {
-          self.$widget.find('li a').removeClass(self.options.selectedclass);
-          self.$widget.find('li:visible a').first().addClass(self.options.selectedclass);
+        if (!$ul.is(':visible') && searchText !== '') {
+          $ul.show();
         }
+        if ($ul.find("li:visible a." + self.options.hoverclass).length <= 0) {
+          $ul.find('li a').removeClass(self.options.hoverclass);
+          $ul.find('li:visible a').first().addClass(self.options.hoverclass);
+          $ul.scrollTop(0);
+        }
+        if (searchText !== '') {
+          self.options.onSearch.call(self, searchText, $ul.find("li:visible a").length);
+        }
+      };
+      attachClickList = function($element) {
+        $element.on('click', function(e) {
+          var val;
+          e.preventDefault();
+          e.stopPropagation();
+          val = $(this).closest('li').attr('data-niceselect-value');
+          self.$ullist.find("a[data-niceselect-value='" + val + "']").trigger('click');
+        });
       };
       attachMouseEnterHandler = function() {
         var $elements;
-        $elements = self.$widget.find('a');
+        $elements = self.$ullist.find('a');
         return $elements.on('mouseenter', function() {
           var $a, text, value;
           $a = $(this);
@@ -76,9 +100,39 @@
           return self.options.onHover.call(self, value, text);
         });
       };
+      addLi = function($a) {
+        var $li, $span;
+        $li = $('<li />', {
+          'data-niceselect-value': $a.data('niceselect-value'),
+          'data-niceselect-text': $a.data('niceselect-text')
+        });
+        $span = $('<span />', {
+          html: $a.data('niceselect-text')
+        });
+        $a = $('<a />', {
+          "class": 'closeelementlist',
+          href: '#',
+          html: 'x'
+        });
+        $li.append($span);
+        $li.append($a);
+        self.$ulsearch.find('li').last().before($li);
+        attachClickList($a);
+      };
+      removeLi = function($a) {
+        var $val;
+        $val = $a.attr('data-niceselect-value');
+        self.$ulsearch.find("[data-niceselect-value='" + $val + "']").remove();
+      };
       attachClickHandler = function() {
         var $elements;
-        $elements = self.$widget.find('a');
+        $elements = self.$ullist.find('a');
+        $elements.on('mouseover', function(e) {
+          if (self.options.type === 'search') {
+            $elements.removeClass(self.options.hoverclass);
+            $(this).addClass(self.options.hoverclass);
+          }
+        });
         $elements.on('click', function(e) {
           var $a, isselect, text, value;
           e.preventDefault();
@@ -93,61 +147,103 @@
               $a.removeClass(self.options.selectedclass);
               setUnSelectFieldValue(value);
               isselect = false;
+              if (self.options.type === 'search') {
+                removeLi($a);
+              }
             }
           }
           if (isselect) {
             $a.addClass(self.options.selectedclass);
             setSelectFieldValue(value);
+            if (self.options.multiple && self.options.type === 'search') {
+              addLi($a);
+            }
             self.options.onSelect.call(self, value, text, e);
           }
           if (self.options.type === 'search') {
+            text = self.options.multiple ? '' : text;
+            self.$inputsearch.val(text);
+            if (self.options.multiple) {
+              self.$inputsearch.focus();
+            }
             $a.closest('ul').hide();
-            self.$search.val(text);
           }
         });
       };
       search = function() {
-        var $ul, element;
-        element = self.$widget.find('input');
-        $ul = self.$widget.find('ul');
-        element.on('keypress', function(e) {
-          var $a;
+        var $ul;
+        $ul = self.$ullist;
+        self.$inputsearch.on('keydown', function(e) {
+          var $a, $value, val;
+          if (e.keyCode === 8) {
+            $ul.find('a').removeClass(self.options.hoverclass);
+            $ul.find('li:visible').first().find('a').addClass(self.options.hoverclass);
+            $ul.scrollTop(0);
+            val = $(this).val();
+            if (val === '') {
+              $a = self.$ulsearch.find('li').last().prev();
+              if ($a.length > 0) {
+                $value = $a.attr('data-niceselect-value');
+                $ul.find("a[data-niceselect-value='" + $value + "']").trigger('click');
+              }
+            }
+          }
           if (e.keyCode === 13) {
             e.preventDefault();
-            $a = $ul.find("li:visible a." + self.options.selectedclass).first();
+            $a = $ul.find("li:visible a." + self.options.hoverclass).first();
             $a.trigger('click');
-            $(this).blur();
+            if (!self.options.multiple) {
+              $(this).blur();
+            }
           }
         });
-        element.on('keyup', function(e) {
+        self.$inputsearch.on('keyup', function(e) {
           var $a, $el;
           if (e.keyCode === 40) {
-            $a = $ul.find("li:visible a." + self.options.selectedclass).first();
-            $ul.find('li a').removeClass(self.options.selectedclass);
-            if ($a.closest('li').nextAll('li:visible').length <= 0) {
-              $el = $ul.find('li:visible a').first();
-            } else {
-              $el = $a.closest('li').nextAll('li:visible').first().find('a').first();
+            $a = $ul.find("li:visible a." + self.options.hoverclass).first();
+            if (!$ul.is(':visible')) {
+              $ul.show();
             }
-            $el.addClass(self.options.selectedclass);
-            return $ul.scrollTop($ul.scrollTop() + $el.closest('li').position().top - $ul.height() / 2 + $el.closest('li').height() / 2);
+            if ($a.length <= 0 && $ul.find("li:visible").length > 0) {
+              $ul.scrollTop(0);
+              $ul.find('li:visible a').first().addClass(self.options.hoverclass);
+              return $a = $ul.find("li:visible a." + self.options.hoverclass).first();
+            } else if ($a.length > 0) {
+              $ul.find('li a').removeClass(self.options.hoverclass);
+              if ($a.closest('li').nextAll('li:visible').length <= 0) {
+                $el = $ul.find('li:visible a').first();
+              } else {
+                $el = $a.closest('li').nextAll('li:visible').first().find('a').first();
+              }
+              $el.addClass(self.options.hoverclass);
+              return $ul.scrollTop($ul.scrollTop() + $el.closest('li').position().top - $ul.height() / 2 + $el.closest('li').height() / 2);
+            }
           } else if (e.keyCode === 38) {
-            $a = $ul.find("li:visible a." + self.options.selectedclass).first();
-            $ul.find('li a').removeClass(self.options.selectedclass);
-            if ($a.closest('li').prevAll('li:visible').length <= 0) {
-              $el = $ul.find('li:visible a').last().first();
-            } else {
-              $el = $a.closest('li').prevAll('li:visible').first().find('a').first();
+            $a = $ul.find("li:visible a." + self.options.hoverclass).first();
+            if (!$ul.is(':visible')) {
+              $ul.show();
             }
-            $el.addClass(self.options.selectedclass);
-            return $ul.scrollTop($ul.scrollTop() + $el.closest('li').position().top - $ul.height() / 2 + $el.closest('li').height() / 2);
+            if ($a.length <= 0 && $ul.find("li:visible").length > 0) {
+              $ul.scrollTop($ul.prop('scrollHeight'));
+              $ul.find('li:visible a').last().addClass(self.options.hoverclass);
+              return $a = $ul.find("li:visible a." + self.options.hoverclass).last();
+            } else if ($a.length > 0) {
+              $ul.find('li a').removeClass(self.options.hoverclass);
+              if ($a.closest('li').prevAll('li:visible').length <= 0) {
+                $el = $ul.find('li:visible a').last().first();
+              } else {
+                $el = $a.closest('li').prevAll('li:visible').first().find('a').first();
+              }
+              $el.addClass(self.options.hoverclass);
+              return $ul.scrollTop($ul.scrollTop() + $el.closest('li').position().top - $ul.height() / 2 + $el.closest('li').height() / 2);
+            }
           } else {
-            inputSearch();
+            return inputSearch();
           }
         });
       };
       buildWidget = function() {
-        var $ul;
+        var $li, $s_ul, $search, $searchdiv, $ul;
         self.$widget = $('<div />', {
           'class': 'ns-widget'
         });
@@ -155,16 +251,26 @@
           'class': self.options.theme
         });
         if (self.options.type === 'search') {
-          self.$search = $('<input />', {
+          $searchdiv = $('<div />', {
+            'class': 'niceselect-search-div'
+          });
+          $s_ul = $('<ul />');
+          $search = $('<input />', {
             'type': "text",
             'name': "niceselect-search"
           });
-          self.$widget.append(self.$search);
+          $li = $('<li />', {
+            'class': 'niceselect-search-input'
+          });
+          $li.append($search);
+          $s_ul.append($li);
+          $searchdiv.append($s_ul);
+          self.$widget.append($searchdiv);
           $ul.hide();
         }
         self.$elem.find('option').each((function(_this) {
           return function(i, el) {
-            var $a, $li, html, text, texts, val;
+            var $a, html, text, texts, val;
             val = $(el).val();
             if (val) {
               text = $(el).text();
@@ -189,11 +295,27 @@
         })(this));
         self.$widget.append($ul);
         self.$elem.before(self.$widget);
+        self.$ulsearch = self.$widget.find('ul').first();
+        self.$ullist = self.$widget.find('ul').last();
+        self.$inputsearch = self.$widget.find('input');
         attachClickHandler();
         attachMouseEnterHandler();
         if (self.options.type === 'search') {
           attachInputHandler();
-          return search();
+          search();
+          self.$inputsearch.autoGrowInput({
+            minWidth: 100,
+            maxWidth: (function(_this) {
+              return function() {
+                return $('.niceselect-search-input').width() - 10;
+              };
+            })(this),
+            comfortZone: 10
+          });
+          if (self.options.multiple) {
+            attachClickList(self.$widget.find('ul').first().find('a'));
+          }
+          return attachUlHandler();
         }
       };
       this.show = function() {
@@ -246,11 +368,13 @@
   $.fn.selectnice.defaults = {
     theme: 'select-default',
     selectedclass: 'selected',
+    hoverclass: 'onhover',
     showtext: true,
     type: 'select',
     multiple: false,
     onSelect: function(value, text, event) {},
-    onHover: function(value, text) {}
+    onHover: function(value, text) {},
+    onSearch: function(value, results) {}
   };
   $.fn.selectnice.SelectNice = SelectNice;
 });
