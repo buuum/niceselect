@@ -10,7 +10,7 @@
   var SelectNice;
   SelectNice = (function() {
     SelectNice = function() {
-      var addLi, attachClickHandler, attachClickList, attachInputHandler, attachMouseEnterHandler, attachUlHandler, buildWidget, findOption, getData, inputSearch, removeLi, search, self, setSelectFieldValue, setUnSelectFieldValue;
+      var addLi, attachClickHandler, attachClickList, attachInputHandler, attachMouseEnterHandler, attachMouseLeaveHandler, attachUlHandler, buildWidget, checkSelect, findOption, getData, inputSearch, removeLi, search, self, setSelectFieldValue, setUnSelectFieldValue;
       self = this;
       getData = function(key) {
         var data;
@@ -97,7 +97,22 @@
           $a = $(this);
           value = $a.data('niceselect-value');
           text = $a.data('niceselect-text');
-          return self.options.onHover.call(self, value, text);
+          self.options.onHover.call(self, value, text);
+          if (self.options.rating) {
+            $a.addClass(self.options.ratingclass).closest('li').prevAll().find('a').addClass(self.options.ratingclass);
+            return $a.addClass(self.options.ratingclass).closest('li').nextAll().find('a').removeClass(self.options.ratingclass);
+          }
+        });
+      };
+      attachMouseLeaveHandler = function() {
+        var $elements;
+        $elements = self.$ullist.find('a');
+        $elements.on('mouseleave', function() {
+          var $a;
+          $a = $(this);
+          if (self.options.rating) {
+            return $elements.removeClass(self.options.ratingclass);
+          }
         });
       };
       addLi = function($a) {
@@ -167,6 +182,9 @@
               self.$inputsearch.focus();
             }
             $a.closest('ul').hide();
+          }
+          if (self.options.rating) {
+            $a.closest('li').prevAll().find('a').addClass(self.options.selectedclass);
           }
         });
       };
@@ -242,6 +260,20 @@
           }
         });
       };
+      checkSelect = function($ul) {
+        self.$elem.find('option').each((function(_this) {
+          return function(i, el) {
+            var $a;
+            if ($(el).is(':selected')) {
+              $a = $ul.find("a[data-niceselect-value='" + ($(el).val()) + "']");
+              $a.addClass(self.options.selectedclass);
+              if (self.options.rating) {
+                $a.closest('li').prevAll().find('a').addClass(self.options.selectedclass);
+              }
+            }
+          };
+        })(this));
+      };
       buildWidget = function() {
         var $li, $s_ul, $search, $searchdiv, $ul;
         self.$widget = $('<div />', {
@@ -252,9 +284,12 @@
         });
         if (self.options.type === 'search') {
           $searchdiv = $('<div />', {
-            'class': 'niceselect-search-div'
+            'class': self.options.theme
           });
-          $s_ul = $('<ul />');
+          $ul.attr('class', 'ul-list');
+          $s_ul = $('<ul />', {
+            'class': 'ul-search'
+          });
           $search = $('<input />', {
             'type': "text",
             'name': "niceselect-search"
@@ -265,7 +300,6 @@
           $li.append($search);
           $s_ul.append($li);
           $searchdiv.append($s_ul);
-          self.$widget.append($searchdiv);
           $ul.hide();
         }
         self.$elem.find('option').each((function(_this) {
@@ -285,33 +319,39 @@
                 'data-niceselect-text': text,
                 'html': texts
               });
-              if ($(el).is(':selected')) {
-                $a.addClass(self.options.selectedclass);
-              }
               $li = $('<li />').append($a);
               $ul.append($li);
             }
           };
         })(this));
-        self.$widget.append($ul);
+        checkSelect($ul);
+        if (self.options.type === 'search') {
+          $searchdiv.append($ul);
+          self.$widget.append($searchdiv);
+        } else {
+          self.$widget.append($ul);
+        }
         self.$elem.before(self.$widget);
         self.$ulsearch = self.$widget.find('ul').first();
         self.$ullist = self.$widget.find('ul').last();
         self.$inputsearch = self.$widget.find('input');
         attachClickHandler();
         attachMouseEnterHandler();
+        attachMouseLeaveHandler();
         if (self.options.type === 'search') {
           attachInputHandler();
           search();
-          self.$inputsearch.autoGrowInput({
-            minWidth: 100,
-            maxWidth: (function(_this) {
-              return function() {
-                return $('.niceselect-search-input').width() - 10;
-              };
-            })(this),
-            comfortZone: 10
-          });
+          if (self.options.multiple) {
+            self.$inputsearch.autoGrowInput({
+              minWidth: 100,
+              maxWidth: (function(_this) {
+                return function() {
+                  return $('.niceselect-search-input').width() - 25;
+                };
+              })(this),
+              comfortZone: 10
+            });
+          }
           if (self.options.multiple) {
             attachClickList(self.$widget.find('ul').first().find('a'));
           }
@@ -369,8 +409,10 @@
     theme: 'select-default',
     selectedclass: 'selected',
     hoverclass: 'onhover',
+    ratingclass: 'rating',
     showtext: true,
     type: 'select',
+    rating: false,
     multiple: false,
     onSelect: function(value, text, event) {},
     onHover: function(value, text) {},
