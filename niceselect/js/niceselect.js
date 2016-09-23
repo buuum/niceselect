@@ -10,7 +10,7 @@
   var SelectNice;
   SelectNice = (function() {
     SelectNice = function() {
-      var addLi, attachClickHandler, attachClickList, attachInputHandler, attachMouseEnterHandler, attachMouseLeaveHandler, attachUlHandler, buildWidget, checkSelect, findOption, getData, inputSearch, removeLi, search, self, setSelectFieldValue, setUnSelectFieldValue;
+      var addLi, attachClickHandler, attachClickList, attachInputHandler, attachMouseEnterHandler, attachMouseLeaveHandler, attachUlHandler, buildWidget, checkSelect, findOption, getData, hideUl, inputSearch, positionUl, removeLi, search, self, setSelectFieldValue, setUnSelectFieldValue, showUl;
       self = this;
       getData = function(key) {
         var data;
@@ -34,27 +34,62 @@
         }
         return $("option[value=" + value + "]", self.$elem);
       };
+      positionUl = function($ul) {
+        var controlHeight, heightToBottom, heightToTop, pos, scrollPos, val;
+        pos = $ul.parent().offset();
+        scrollPos = $(window).scrollTop();
+        heightToTop = pos.top - scrollPos;
+        controlHeight = $ul.parent().outerHeight();
+        heightToBottom = $(window).height() - (heightToTop + controlHeight);
+        $ul.css('max-height', 'none');
+        if (heightToTop > heightToBottom && $ul.height() > heightToBottom) {
+          $ul.css('max-height', heightToTop - 10);
+          val = -($ul.height());
+          $ul.css('top', val);
+        } else {
+          $ul.css('max-height', heightToBottom - 10);
+          $ul.css('top', controlHeight);
+        }
+      };
+      showUl = function($ul) {
+        if (!$ul.is(':visible')) {
+          self.$ulsearch.addClass('focus');
+          $ul.show();
+        }
+        positionUl($ul);
+      };
+      hideUl = function($ul) {
+        $ul.hide();
+        self.$ulsearch.removeClass('focus');
+      };
       attachUlHandler = function() {
         self.$ulsearch.on('click', function(e) {
           e.preventDefault();
-          self.$inputsearch.focus();
+          if (!self.$ullist.is(':visible') && !self.$inputsearch.is(':focus')) {
+            showUl(self.$ullist);
+            self.$inputsearch.focus();
+          } else if (!self.$ullist.is(':visible')) {
+            showUl(self.$ullist);
+          } else if (!self.$inputsearch.is(':focus') && self.$ullist.is(':visible')) {
+            hideUl(self.$ullist);
+          } else if (self.$ullist.is(':visible') && self.$inputsearch.is(':focus')) {
+            hideUl(self.$ullist);
+          }
         });
       };
       attachInputHandler = function() {
         var $ul;
         $ul = self.$ullist;
-        self.$inputsearch.on('focus', function() {
-          $ul.show();
-          inputSearch();
-        });
         self.$inputsearch.on('focusout', function() {
-          if ($ul.find('li:hover').length <= 0) {
-            return $ul.hide();
+          if (self.$ullist.is(':visible') && !self.$ulsearch.is(':hover')) {
+            if (!self.$ullist.is(':hover')) {
+              return hideUl($ul);
+            }
           }
         });
       };
       inputSearch = function() {
-        var $ul, searchText;
+        var $ul, notfound, searchText;
         searchText = self.$inputsearch.val();
         searchText = searchText.toLowerCase();
         searchText = searchText.replace(/\s+/g, '');
@@ -68,14 +103,24 @@
           showCurrentLi = currentLiText.toLowerCase().replace(/\s+/g, '').indexOf(searchText) !== -1;
           $(this).toggle(showCurrentLi);
         });
-        if (!$ul.is(':visible') && searchText !== '') {
-          $ul.show();
+        if (searchText !== '') {
+          showUl($ul);
         }
         if ($ul.find("li:visible a." + self.options.hoverclass).length <= 0) {
           $ul.find('li a').removeClass(self.options.hoverclass);
           $ul.find('li:visible a').first().addClass(self.options.hoverclass);
           $ul.scrollTop(0);
         }
+        if ($ul.find('li:visible').length <= 0) {
+          notfound = $('<li />', {
+            "class": self.options.notfoundclass
+          });
+          notfound.html(self.options.notfoundtext);
+          $ul.append(notfound);
+        } else {
+          $ul.find("li." + self.options.notfoundclass).remove();
+        }
+        positionUl($ul);
         if (searchText !== '') {
           self.options.onSearch.call(self, searchText, $ul.find("li:visible a").length);
         }
@@ -108,8 +153,6 @@
         var $elements;
         $elements = self.$ullist.find('a');
         $elements.on('mouseleave', function() {
-          var $a;
-          $a = $(this);
           if (self.options.rating) {
             return $elements.removeClass(self.options.ratingclass);
           }
@@ -131,6 +174,7 @@
         });
         $li.append($span);
         $li.append($a);
+        self.$inputsearch.attr('placeholder', '');
         self.$ulsearch.find('li').last().before($li);
         attachClickList($a);
       };
@@ -138,11 +182,14 @@
         var $val;
         $val = $a.attr('data-niceselect-value');
         self.$ulsearch.find("[data-niceselect-value='" + $val + "']").remove();
+        if (self.$ulsearch.find('li').length < 2) {
+          self.$inputsearch.attr('placeholder', self.options.placeholder);
+        }
       };
       attachClickHandler = function() {
         var $elements;
         $elements = self.$ullist.find('a');
-        $elements.on('mouseover', function(e) {
+        $elements.on('mouseover', function() {
           if (self.options.type === 'search') {
             $elements.removeClass(self.options.hoverclass);
             $(this).addClass(self.options.hoverclass);
@@ -181,7 +228,7 @@
             if (self.options.multiple) {
               self.$inputsearch.focus();
             }
-            $a.closest('ul').hide();
+            hideUl(self.$ullist);
           }
           if (self.options.rating) {
             $a.closest('li').prevAll().find('a').addClass(self.options.selectedclass);
@@ -204,6 +251,11 @@
                 $value = $a.attr('data-niceselect-value');
                 $ul.find("a[data-niceselect-value='" + $value + "']").trigger('click');
               }
+              if ($a.length === 1) {
+                self.$inputsearch.css('width', '100%');
+              }
+            } else {
+              positionUl($ul);
             }
           }
           if (e.keyCode === 13) {
@@ -219,9 +271,8 @@
           var $a, $el;
           if (e.keyCode === 40) {
             $a = $ul.find("li:visible a." + self.options.hoverclass).first();
-            if (!$ul.is(':visible')) {
-              $ul.show();
-            }
+            $ul.find("li." + self.options.notfoundclass).remove();
+            showUl($ul);
             if ($a.length <= 0 && $ul.find("li:visible").length > 0) {
               $ul.scrollTop(0);
               $ul.find('li:visible a').first().addClass(self.options.hoverclass);
@@ -238,9 +289,8 @@
             }
           } else if (e.keyCode === 38) {
             $a = $ul.find("li:visible a." + self.options.hoverclass).first();
-            if (!$ul.is(':visible')) {
-              $ul.show();
-            }
+            $ul.find("li." + self.options.notfoundclass).remove();
+            showUl($ul);
             if ($a.length <= 0 && $ul.find("li:visible").length > 0) {
               $ul.scrollTop($ul.prop('scrollHeight'));
               $ul.find('li:visible a').last().addClass(self.options.hoverclass);
@@ -294,6 +344,9 @@
             'type': "text",
             'name': "niceselect-search"
           });
+          if (self.options.placeholder) {
+            $search.attr('placeholder', self.options.placeholder);
+          }
           $li = $('<li />', {
             'class': 'niceselect-search-input'
           });
@@ -339,6 +392,7 @@
         attachMouseEnterHandler();
         attachMouseLeaveHandler();
         if (self.options.type === 'search') {
+          attachUlHandler();
           attachInputHandler();
           search();
           if (self.options.multiple) {
@@ -353,9 +407,8 @@
             });
           }
           if (self.options.multiple) {
-            attachClickList(self.$widget.find('ul').first().find('a'));
+            return attachClickList(self.$widget.find('ul').first().find('a'));
           }
-          return attachUlHandler();
         }
       };
       this.show = function() {
@@ -410,7 +463,10 @@
     selectedclass: 'selected',
     hoverclass: 'onhover',
     ratingclass: 'rating',
+    notfoundclass: 'not-found',
+    notfoundtext: 'No results found',
     showtext: true,
+    placeholder: false,
     type: 'select',
     rating: false,
     multiple: false,
